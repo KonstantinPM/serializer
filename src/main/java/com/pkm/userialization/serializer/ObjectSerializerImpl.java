@@ -11,28 +11,24 @@ import java.util.Map;
 
 public class ObjectSerializerImpl implements ObjectSerializer {
 
-    private DataInputStream dataInputStream;
-    private DataOutputStream dataOutputStream;
+    public byte[] serializeObj(Object obj) throws IOException, ReflectiveOperationException {
+        try(ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            DataOutputStream dataOutputStream = new DataOutputStream(baos)) {
 
-    public byte[] serializeObj(Object obj) throws IOException, IllegalAccessException, InstantiationException,
-            NoSuchFieldException, NoSuchMethodException, InvocationTargetException {
-        ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        dataOutputStream = new DataOutputStream(baos);
-        writeObject(obj);
-
-        return baos.toByteArray();
+            writeObject(obj, dataOutputStream);
+            return baos.toByteArray();
+        }
     }
 
-    public Object deserializeObj(byte[] bytes) throws ClassNotFoundException, InstantiationException,
-            IllegalAccessException, IOException, NoSuchFieldException, NoSuchMethodException, InvocationTargetException {
-        ByteArrayInputStream bais = new ByteArrayInputStream(bytes);
-        dataInputStream = new DataInputStream(bais);
+    public Object deserializeObj(byte[] bytes) throws ReflectiveOperationException, IOException {
+        try(ByteArrayInputStream bais = new ByteArrayInputStream(bytes);
+            DataInputStream dataInputStream = new DataInputStream(bais)) {
 
-        return readObject();
+            return readObject(dataInputStream);
+        }
     }
 
-    private Object readObject() throws IOException, ClassNotFoundException, IllegalAccessException,
-            InstantiationException, NoSuchFieldException, NoSuchMethodException, InvocationTargetException {
+    private Object readObject(DataInputStream dataInputStream) throws IOException, ReflectiveOperationException {
         String className = dataInputStream.readUTF();
         if ("null".equals(className)) {
             return null;
@@ -41,81 +37,81 @@ public class ObjectSerializerImpl implements ObjectSerializer {
         Object obj;
 
         if (clazz.isPrimitive()){
-            obj = readPrimitive(clazz);
+            obj = readPrimitive(clazz, dataInputStream);
         } else if (Primitives.isWrapperType(clazz)) {
-            obj = readPrimitive(Primitives.unwrap(clazz));
+            obj = readPrimitive(Primitives.unwrap(clazz), dataInputStream);
         } else if (clazz == String.class) {
             obj = dataInputStream.readUTF();
         } else if (clazz.isArray()) {
-            obj = readArray();
+            obj = readArray(dataInputStream);
         } else if (clazz.isEnum()) {
-            obj = readEnum((Class<Enum>) clazz);
+            obj = readEnum((Class<Enum>) clazz, dataInputStream);
         } else if (Map.class.isAssignableFrom(clazz)) {
-            obj = readMap(clazz);
+            obj = readMap(clazz, dataInputStream);
         } else if (Collection.class.isAssignableFrom(clazz)) {
-            obj = readCollection(clazz);
+            obj = readCollection(clazz, dataInputStream);
         } else {
-            if (ReflectionUtils.hasDefaultConstructor(clazz)) {
+            if (ReflectionUtils.hasNoArgsConstructor(clazz)) {
                 obj = clazz.newInstance();
             } else {
-                obj = ReflectionUtils.newInstanceWithoutDefaultConstructor(clazz);
+                obj = ReflectionUtils.newInstanceWithoutNoArgsConstructor(clazz);
             }
             List<Field> allNonStaticField = ReflectionUtils.getAllNonStaticFields(clazz);
             for (Field field : allNonStaticField) {
-                readField(obj, field);
+                readField(obj, field, dataInputStream);
             }
         }
 
         return obj;
     }
 
-    private Object readMap(Class<?> clazz) throws IllegalAccessException, InstantiationException, IOException,
-            ClassNotFoundException, NoSuchMethodException, InvocationTargetException, NoSuchFieldException {
+    private Object readMap(Class<?> clazz, DataInputStream dataInputStream)
+            throws IOException, ReflectiveOperationException {
         Map<Object,Object> map = (Map<Object, Object>) clazz.newInstance();
         int size = dataInputStream.readInt();
         for (int i = 0; i < size; i++) {
-            Object key = readObject();
-            Object value = readObject();
+            Object key = readObject(dataInputStream);
+            Object value = readObject(dataInputStream);
             map.put(key, value);
         }
         return map;
     }
 
-    private Object readCollection(Class<?> clazz) throws IllegalAccessException, InstantiationException, IOException,
-            ClassNotFoundException, NoSuchMethodException, InvocationTargetException, NoSuchFieldException {
+    private Object readCollection(Class<?> clazz, DataInputStream dataInputStream)
+            throws IOException, ReflectiveOperationException {
         Collection<Object> collection = (Collection<Object>) clazz.newInstance();
         int size = dataInputStream.readInt();
         for (int i = 0; i < size; i++) {
-            collection.add(readObject());
+            collection.add(readObject(dataInputStream));
         }
         return collection;
     }
 
-    private Object readEnum(Class<Enum> clazz) throws IOException, IllegalAccessException, InvocationTargetException,
-            InstantiationException, NoSuchFieldException, NoSuchMethodException, ClassNotFoundException {
+    private Object readEnum(Class<Enum> clazz, DataInputStream dataInputStream)
+            throws IOException, ReflectiveOperationException {
         String value = dataInputStream.readUTF();
         Enum anEnum = Enum.valueOf(clazz, value);
 
         List<Field> fields = ReflectionUtils.getNonStaticDeclaredFields(clazz);
         for (Field field : fields) {
-            readField(anEnum, field);
+            readField(anEnum, field, dataInputStream);
         }
         return anEnum;
     }
 
-    private Object readArray() throws IOException, ClassNotFoundException, NoSuchFieldException,
-            InstantiationException, IllegalAccessException, NoSuchMethodException, InvocationTargetException {
+    private Object readArray(DataInputStream dataInputStream)
+            throws IOException, ReflectiveOperationException {
         int arrLength = dataInputStream.readInt();
         String componentType = dataInputStream.readUTF();
         Object array = Array.newInstance(ReflectionUtils.loadClass(componentType), arrLength);
         for (int i = 0; i < arrLength; i++) {
-            Array.set(array, i, readObject());
+            Array.set(array, i, readObject(dataInputStream));
         }
         return array;
     }
 
-    private void readField(Object obj, Field field) throws IOException, ClassNotFoundException, InstantiationException,
-            IllegalAccessException, NoSuchFieldException, NoSuchMethodException, InvocationTargetException {
+    private void readField(Object obj, Field field, DataInputStream dataInputStream)
+            throws IOException, ReflectiveOperationException {
         if (!field.isAccessible()) {
             field.setAccessible(true);
         }
@@ -127,10 +123,10 @@ public class ObjectSerializerImpl implements ObjectSerializer {
         }
 
 //        String fieldName = dataInputStream.readUTF();
-        field.set(obj, readObject());
+        field.set(obj, readObject(dataInputStream));
     }
 
-    private Object readPrimitive(Class<?> clazz) throws IOException {
+    private Object readPrimitive(Class<?> clazz, DataInputStream dataInputStream) throws IOException {
         if (clazz == int.class) {
             return dataInputStream.readInt();
         } else if (clazz == short.class) {
@@ -152,8 +148,8 @@ public class ObjectSerializerImpl implements ObjectSerializer {
         }
     }
 
-    private void writeObject(Object obj) throws IOException, IllegalAccessException, InstantiationException,
-            NoSuchFieldException, NoSuchMethodException, InvocationTargetException {
+    private void writeObject(Object obj, DataOutputStream dataOutputStream)
+            throws IOException, ReflectiveOperationException {
         if (obj == null) {
             dataOutputStream.writeUTF("null");
             return;
@@ -162,46 +158,46 @@ public class ObjectSerializerImpl implements ObjectSerializer {
         dataOutputStream.writeUTF(clazz.getName());
 
         if (clazz.isPrimitive()) {
-            writePrimitive(clazz, obj);
+            writePrimitive(clazz, obj, dataOutputStream);
         } else if (Primitives.isWrapperType(clazz)) {
-            writePrimitive(Primitives.unwrap(clazz), obj);
+            writePrimitive(Primitives.unwrap(clazz), obj, dataOutputStream);
         } else if (clazz == String.class) {
             dataOutputStream.writeUTF((String) obj);
         } else if (clazz.isArray()) {
-            writeArray(obj, clazz.getComponentType());
+            writeArray(obj, clazz.getComponentType(), dataOutputStream);
         } else if (clazz.isEnum()) {
-            writeEnum(obj);
+            writeEnum(obj, dataOutputStream);
         } else if (obj instanceof Collection<?>) {
-            writeCollection((Collection<?>) obj);
+            writeCollection((Collection<?>) obj, dataOutputStream);
         } else if (obj instanceof Map<?,?>) {
-            writeMap((Map<?,?>) obj);
+            writeMap((Map<?,?>) obj, dataOutputStream);
         } else {
             List<Field> allNonStaticFields = ReflectionUtils.getAllNonStaticFields(clazz);
             for (Field field : allNonStaticFields) {
-                writeField(field, obj);
+                writeField(field, obj, dataOutputStream);
             }
         }
     }
 
-    private void writeMap(Map<?, ?> map) throws IllegalAccessException, InvocationTargetException, IOException,
-            InstantiationException, NoSuchMethodException, NoSuchFieldException {
+    private void writeMap(Map<?, ?> map, DataOutputStream dataOutputStream)
+            throws ReflectiveOperationException, IOException {
         dataOutputStream.writeInt(map.size());
         for (Object key : map.keySet()) {
-            writeObject(key);
-            writeObject(map.get(key));
+            writeObject(key, dataOutputStream);
+            writeObject(map.get(key), dataOutputStream);
         }
     }
 
-    private void writeCollection(Collection<?> collection) throws IllegalAccessException, InvocationTargetException,
-            IOException, InstantiationException, NoSuchMethodException, NoSuchFieldException {
+    private void writeCollection(Collection<?> collection, DataOutputStream dataOutputStream)
+            throws ReflectiveOperationException, IOException {
         dataOutputStream.writeInt(collection.size());
         for (Object elem : collection) {
-            writeObject(elem);
+            writeObject(elem, dataOutputStream);
         }
     }
 
-    private void writeEnum(Object obj) throws NoSuchFieldException, IllegalAccessException, IOException,
-            NoSuchMethodException, InvocationTargetException, InstantiationException {
+    private void writeEnum(Object obj, DataOutputStream dataOutputStream)
+            throws IOException, ReflectiveOperationException {
         Class<?> clazz = obj.getClass();
 
         Field nameField = Enum.class.getDeclaredField("name");
@@ -211,30 +207,30 @@ public class ObjectSerializerImpl implements ObjectSerializer {
 
         List<Field> fields = ReflectionUtils.getNonStaticDeclaredFields(clazz);
         for (Field field : fields) {
-            writeField(field, obj);
+            writeField(field, obj, dataOutputStream);
         }
     }
 
-    private void writeField(Field field, Object obj) throws IOException, IllegalAccessException,
-            InstantiationException, NoSuchFieldException, NoSuchMethodException, InvocationTargetException {
+    private void writeField(Field field, Object obj, DataOutputStream dataOutputStream)
+            throws IOException, ReflectiveOperationException {
         if (!field.isAccessible()) {
             field.setAccessible(true);
         }
 //        dataOutputStream.writeUTF(field.getName());
-        writeObject(field.get(obj));
+        writeObject(field.get(obj), dataOutputStream);
     }
 
-    private void writeArray(Object obj, Class<?> componentType) throws IllegalAccessException, IOException,
-            InstantiationException, NoSuchFieldException, NoSuchMethodException, InvocationTargetException {
+    private void writeArray(Object obj, Class<?> componentType, DataOutputStream dataOutputStream)
+            throws IOException, ReflectiveOperationException {
         int arrLength = Array.getLength(obj);
         dataOutputStream.writeInt(arrLength);
         dataOutputStream.writeUTF(componentType.getName());
         for (int i = 0; i < arrLength; i++) {
-            writeObject(Array.get(obj, i));
+            writeObject(Array.get(obj, i), dataOutputStream);
         }
     }
 
-    private void writePrimitive(Class<?> clazz, Object value) throws IOException {
+    private void writePrimitive(Class<?> clazz, Object value, DataOutputStream dataOutputStream) throws IOException {
         if (clazz == int.class) {
             dataOutputStream.writeInt((int) value);
         } else if (clazz == short.class) {

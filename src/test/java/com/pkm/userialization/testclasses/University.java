@@ -7,7 +7,7 @@ import lombok.*;
 @NoArgsConstructor
 @EqualsAndHashCode
 @ToString
-public class University {
+public class University implements Comparable<University> {
 
     @Getter
     @Setter
@@ -16,4 +16,9 @@ public class University {
     @Getter
     @Setter
     private int accreditationLevel;
+
+    @Override
+    public int compareTo(University u) {
+        return name.compareTo(u.getName());
+    }
 }

@@ -5,11 +5,7 @@ import lombok.SneakyThrows;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import java.lang.reflect.Field;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.List;
+import java.util.*;
 
 import static org.junit.Assert.*;
 
@@ -154,6 +150,25 @@ public class ObjectSerializerImplTest {
 
     @Test
     @SneakyThrows
+    public void serializeArrayOfObjects() {
+        University[] universities = {
+                new University("DNU", 4),
+                new University("DNP", 5),
+                new University("KNF", 3)
+        };
+        System.out.println("Before: " + Arrays.toString(universities));
+
+        byte[] bytes = objectSerializer.serializeObj(universities);
+        System.out.println("Size in bytes: " + bytes.length);
+
+        University[] deserializeUniversities = (University[]) objectSerializer.deserializeObj(bytes);
+        System.out.println("After: " + Arrays.toString(deserializeUniversities));
+
+        assertArrayEquals(universities, deserializeUniversities);
+    }
+
+    @Test
+    @SneakyThrows
     public void serializeSimpleObject() {
         University university = new University("ДНУ", 5);
         System.out.println("Before: " + university);
@@ -209,8 +224,25 @@ public class ObjectSerializerImplTest {
 
     @Test
     @SneakyThrows
+    public void serializeHashSet() {
+        Set<University> universities = new HashSet<>();
+        universities.add(new University("DNU",2));
+        universities.add(new University("DPI",1));
+        System.out.println("Before: " + universities);
+
+        byte[] bytes = objectSerializer.serializeObj(universities);
+        System.out.println("Size in bytes: " + bytes.length);
+
+        Set<University> deserializeUniversities = (Set<University>) objectSerializer.deserializeObj(bytes);
+        System.out.println("After: " + deserializeUniversities);
+
+        assertEquals(universities, deserializeUniversities);
+    }
+
+    @Test
+    @SneakyThrows
     public void serializeHashMap() {
-        HashMap<Integer, Student> studentIdMap = new HashMap<>();
+        Map<Integer, Student> studentIdMap = new HashMap<>();
         studentIdMap.put(1, new Student("FPM", new University("DNU",4)));
         studentIdMap.put(2, new Student("FDS", new University("DGU",5)));
         studentIdMap.put(3, new Student("KNT", new University("KNU",5)));
@@ -219,7 +251,7 @@ public class ObjectSerializerImplTest {
         byte[] bytes = objectSerializer.serializeObj(studentIdMap);
         System.out.println("Size in bytes: " + bytes.length);
 
-        HashMap<Integer, String> deserializeMap = (HashMap<Integer, String>) objectSerializer.deserializeObj(bytes);
+        Map<Integer, Student> deserializeMap = (Map<Integer, Student>) objectSerializer.deserializeObj(bytes);
         System.out.println("After: " + deserializeMap);
 
         assertEquals(studentIdMap, deserializeMap);
@@ -227,31 +259,55 @@ public class ObjectSerializerImplTest {
 
     @Test
     @SneakyThrows
-    public void testClassWithEnum() {
-        Human human = new Human("John", "Ivanov", 27, Gender.MALE);
-        System.out.println("Before: " + human);
+    public void serializeTreeMapOnlyIfKeyClassImplementsComparable() {
+        TreeMap<University, Integer> studentIdMap = new TreeMap<>();
+        studentIdMap.put(new University("DNU", 4), 10092);
+        studentIdMap.put(new University("AGT", 5), 4332);
+        studentIdMap.put(new University("ZNU", 4), 12332);
+        System.out.println("Before: " + studentIdMap);
 
-        byte[] bytes = objectSerializer.serializeObj(human);
-        System.out.println(new String(bytes));
-        Human deserializeHuman = (Human) objectSerializer.deserializeObj(bytes);
-        System.out.println("After: " + deserializeHuman);
+        byte[] bytes = objectSerializer.serializeObj(studentIdMap);
+        System.out.println("Size in bytes: " + bytes.length);
 
-        assertEquals(human, deserializeHuman);
+        TreeMap<University, Integer> deserializeMap = (TreeMap<University, Integer>) objectSerializer.deserializeObj(bytes);
+        System.out.println("After: " + deserializeMap);
+
+        assertEquals(studentIdMap, deserializeMap);
     }
 
     @Test
     @SneakyThrows
-    public void testComplexEnum() {
-        TestEnum testEnum = TestEnum.valueOf("ONE");
-        testEnum.setTitle("десять");
-        testEnum.setValue(10);
+    public void serializeComplexEnum() {
+        TestEnum testEnum = TestEnum.ONE;
+        testEnum.setTitle("пять");
+        testEnum.setValue(5);
+        testEnum.setUniversity(new University("DPA", 4));
         System.out.println("Before: " + testEnum);
 
         byte[] bytes = objectSerializer.serializeObj(testEnum);
-        System.out.println(new String(bytes));
+        System.out.println("Size in bytes: " + bytes.length);
+
         TestEnum deserializeObj = (TestEnum) objectSerializer.deserializeObj(bytes);
         System.out.println("After: " + deserializeObj);
 
         assertEquals(testEnum, deserializeObj);
+        assertEquals(testEnum.getTitle(), deserializeObj.getTitle());
+        assertEquals(testEnum.getValue(), deserializeObj.getValue());
+        assertEquals(testEnum.getUniversity(), deserializeObj.getUniversity());
+    }
+
+    @Test
+    @SneakyThrows
+    public void serializeClassWithEnum() {
+        Human human = new Human("John", "Ivanov", 27, Gender.MALE);
+        System.out.println("Before: " + human);
+
+        byte[] bytes = objectSerializer.serializeObj(human);
+        System.out.println("Size in bytes: " + bytes.length);
+
+        Human deserializeHuman = (Human) objectSerializer.deserializeObj(bytes);
+        System.out.println("After: " + deserializeHuman);
+
+        assertEquals(human, deserializeHuman);
     }
 }

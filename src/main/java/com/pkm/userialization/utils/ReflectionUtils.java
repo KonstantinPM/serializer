@@ -1,13 +1,14 @@
 package com.pkm.userialization.utils;
 
-import com.google.common.primitives.Primitives;
-
 import java.lang.reflect.*;
 import java.util.*;
 import java.util.stream.Collectors;
 
 public class ReflectionUtils {
 
+    /**
+     * Возвращает список всех полей для указанного класса, включая поля его предков
+     */
     public static List<Field> getAllFields(Class<?> clazz) {
         Class<?> superclass = clazz.getSuperclass();
         List<Field> fields = new ArrayList<>(Arrays.asList(clazz.getDeclaredFields()));
@@ -18,25 +19,36 @@ public class ReflectionUtils {
         return fields;
     }
 
+    /**
+     * Возвращает список всех нестатических полей для указанного класса, включая поля его предков
+     */
     public static List<Field> getAllNonStaticFields(Class<?> clazz) {
         return getAllFields(clazz).stream()
                 .filter(f -> !Modifier.isStatic(f.getModifiers()))
                 .collect(Collectors.toList());
     }
 
+    /**
+     * Возвращает список всех нестатических полей для указанного класса
+     */
     public static List<Field> getNonStaticDeclaredFields(Class<?> clazz) {
         return Arrays.stream(clazz.getDeclaredFields())
                 .filter(field -> !Modifier.isStatic(field.getModifiers()))
                 .collect(Collectors.toList());
     }
 
-    public static boolean hasDefaultConstructor(Class<?> clazz) {
+    /**
+     * Возвращает true, если указанный класс имеет конструктор без аргументов, иначе false
+     */
+    public static boolean hasNoArgsConstructor(Class<?> clazz) {
         return Arrays.stream(clazz.getDeclaredConstructors())
                     .anyMatch(c -> c.getParameterCount() == 0);
     }
 
-    public static Object newInstanceWithoutDefaultConstructor(Class<?> clazz) throws NoSuchMethodException,
-            IllegalAccessException, InstantiationException, InvocationTargetException {
+    /**
+     * Возвращает новый экземпляр класса, созданный без использования конструктора без аргументов
+     */
+    public static Object newInstanceWithoutNoArgsConstructor(Class<?> clazz) throws ReflectiveOperationException {
         Optional<Constructor<?>> constructorOpt = Arrays.stream(clazz.getDeclaredConstructors())
                                                         .filter(c -> c.getParameterCount() != 0)
                                                         .min(Comparator.comparingInt(Constructor::getParameterCount));
@@ -58,9 +70,13 @@ public class ReflectionUtils {
         return constructor.newInstance(params);
     }
 
-    public static Class<?> loadClass(String name) throws ClassNotFoundException {
+    /**
+     * Возвращает новый экземпляр класса (включая примитивы), созданный по указанному имени.
+     * @param className имя класса
+     */
+    public static Class<?> loadClass(String className) throws ClassNotFoundException {
         Class<?> clazz;
-        switch (name) {
+        switch (className) {
             case "byte":
                 clazz = byte.class;
                 break;
@@ -86,7 +102,7 @@ public class ReflectionUtils {
                 clazz = boolean.class;
                 break;
             default:
-                clazz = Class.forName(name);
+                clazz = Class.forName(className);
         }
 
         return clazz;
