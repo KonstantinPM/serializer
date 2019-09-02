@@ -24,6 +24,12 @@ public class ReflectionUtils {
                 .collect(Collectors.toList());
     }
 
+    public static List<Field> getNonStaticDeclaredFields(Class<?> clazz) {
+        return Arrays.stream(clazz.getDeclaredFields())
+                .filter(field -> !Modifier.isStatic(field.getModifiers()))
+                .collect(Collectors.toList());
+    }
+
     public static boolean hasDefaultConstructor(Class<?> clazz) {
         return Arrays.stream(clazz.getDeclaredConstructors())
                     .anyMatch(c -> c.getParameterCount() == 0);
@@ -52,19 +58,37 @@ public class ReflectionUtils {
         return constructor.newInstance(params);
     }
 
-    public static Field getField(Class<?> basicClass, Class<?> fieldClass, String fieldName) {
-        List<Field> fields = getAllFields(basicClass);
-        Optional<Field> field = fields.stream()
-                                    .filter(f -> f.getName().equals(fieldName) && f.getType() == fieldClass)
-                                    .findFirst();
-        return field.orElse(null);
-    }
+    public static Class<?> loadClass(String name) throws ClassNotFoundException {
+        Class<?> clazz;
+        switch (name) {
+            case "byte":
+                clazz = byte.class;
+                break;
+            case "short":
+                clazz = short.class;
+                break;
+            case "int":
+                clazz = int.class;
+                break;
+            case "long":
+                clazz = long.class;
+                break;
+            case "float":
+                clazz = float.class;
+                break;
+            case "double":
+                clazz = double.class;
+                break;
+            case "char":
+                clazz = char.class;
+                break;
+            case "boolean":
+                clazz = boolean.class;
+                break;
+            default:
+                clazz = Class.forName(name);
+        }
 
-    public static List<Field> getAllNonPrimitiveFields(Class<?> clazz) {
-        List<Field> fields = getAllFields(clazz);
-        return fields.stream()
-                    .filter(field -> !field.getType().isPrimitive() &&
-                                     !Primitives.isWrapperType(field.getType()))
-                    .collect(Collectors.toList());
+        return clazz;
     }
 }

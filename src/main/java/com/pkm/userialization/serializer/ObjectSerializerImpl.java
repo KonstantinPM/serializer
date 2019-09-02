@@ -4,11 +4,10 @@ import com.google.common.primitives.Primitives;
 import com.pkm.userialization.utils.ReflectionUtils;
 
 import java.io.*;
-import java.lang.reflect.Array;
-import java.lang.reflect.Field;
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Modifier;
+import java.lang.reflect.*;
+import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 
 public class ObjectSerializerImpl implements ObjectSerializer {
 
@@ -51,6 +50,10 @@ public class ObjectSerializerImpl implements ObjectSerializer {
             obj = readArray();
         } else if (clazz.isEnum()) {
             obj = readEnum((Class<Enum>) clazz);
+        } else if (Map.class.isAssignableFrom(clazz)) {
+            obj = readMap(clazz);
+        } else if (Collection.class.isAssignableFrom(clazz)) {
+            obj = readCollection(clazz);
         } else {
             if (ReflectionUtils.hasDefaultConstructor(clazz)) {
                 obj = clazz.newInstance();
@@ -66,16 +69,45 @@ public class ObjectSerializerImpl implements ObjectSerializer {
         return obj;
     }
 
-    private Object readEnum(Class<Enum> clazz) throws IOException {
-        String name = dataInputStream.readUTF();
-        return Enum.valueOf(clazz, name);
+    private Object readMap(Class<?> clazz) throws IllegalAccessException, InstantiationException, IOException,
+            ClassNotFoundException, NoSuchMethodException, InvocationTargetException, NoSuchFieldException {
+        Map<Object,Object> map = (Map<Object, Object>) clazz.newInstance();
+        int size = dataInputStream.readInt();
+        for (int i = 0; i < size; i++) {
+            Object key = readObject();
+            Object value = readObject();
+            map.put(key, value);
+        }
+        return map;
+    }
+
+    private Object readCollection(Class<?> clazz) throws IllegalAccessException, InstantiationException, IOException,
+            ClassNotFoundException, NoSuchMethodException, InvocationTargetException, NoSuchFieldException {
+        Collection<Object> collection = (Collection<Object>) clazz.newInstance();
+        int size = dataInputStream.readInt();
+        for (int i = 0; i < size; i++) {
+            collection.add(readObject());
+        }
+        return collection;
+    }
+
+    private Object readEnum(Class<Enum> clazz) throws IOException, IllegalAccessException, InvocationTargetException,
+            InstantiationException, NoSuchFieldException, NoSuchMethodException, ClassNotFoundException {
+        String value = dataInputStream.readUTF();
+        Enum anEnum = Enum.valueOf(clazz, value);
+
+        List<Field> fields = ReflectionUtils.getNonStaticDeclaredFields(clazz);
+        for (Field field : fields) {
+            readField(anEnum, field);
+        }
+        return anEnum;
     }
 
     private Object readArray() throws IOException, ClassNotFoundException, NoSuchFieldException,
             InstantiationException, IllegalAccessException, NoSuchMethodException, InvocationTargetException {
         int arrLength = dataInputStream.readInt();
         String componentType = dataInputStream.readUTF();
-        Object array = Array.newInstance(Class.forName(componentType), arrLength);
+        Object array = Array.newInstance(ReflectionUtils.loadClass(componentType), arrLength);
         for (int i = 0; i < arrLength; i++) {
             Array.set(array, i, readObject());
         }
@@ -94,7 +126,7 @@ public class ObjectSerializerImpl implements ObjectSerializer {
             modifiersField.setInt(field, field.getModifiers() & ~Modifier.FINAL);
         }
 
-        String fieldName = dataInputStream.readUTF();
+//        String fieldName = dataInputStream.readUTF();
         field.set(obj, readObject());
     }
 
@@ -139,6 +171,10 @@ public class ObjectSerializerImpl implements ObjectSerializer {
             writeArray(obj, clazz.getComponentType());
         } else if (clazz.isEnum()) {
             writeEnum(obj);
+        } else if (obj instanceof Collection<?>) {
+            writeCollection((Collection<?>) obj);
+        } else if (obj instanceof Map<?,?>) {
+            writeMap((Map<?,?>) obj);
         } else {
             List<Field> allNonStaticFields = ReflectionUtils.getAllNonStaticFields(clazz);
             for (Field field : allNonStaticFields) {
@@ -147,11 +183,36 @@ public class ObjectSerializerImpl implements ObjectSerializer {
         }
     }
 
-    private void writeEnum(Object obj) throws NoSuchFieldException, IllegalAccessException, IOException {
-        Field field = Enum.class.getDeclaredField("name");
-        field.setAccessible(true);
-        String name = String.valueOf(field.get(obj));
+    private void writeMap(Map<?, ?> map) throws IllegalAccessException, InvocationTargetException, IOException,
+            InstantiationException, NoSuchMethodException, NoSuchFieldException {
+        dataOutputStream.writeInt(map.size());
+        for (Object key : map.keySet()) {
+            writeObject(key);
+            writeObject(map.get(key));
+        }
+    }
+
+    private void writeCollection(Collection<?> collection) throws IllegalAccessException, InvocationTargetException,
+            IOException, InstantiationException, NoSuchMethodException, NoSuchFieldException {
+        dataOutputStream.writeInt(collection.size());
+        for (Object elem : collection) {
+            writeObject(elem);
+        }
+    }
+
+    private void writeEnum(Object obj) throws NoSuchFieldException, IllegalAccessException, IOException,
+            NoSuchMethodException, InvocationTargetException, InstantiationException {
+        Class<?> clazz = obj.getClass();
+
+        Field nameField = Enum.class.getDeclaredField("name");
+        nameField.setAccessible(true);
+        String name = String.valueOf(nameField.get(obj));
         dataOutputStream.writeUTF(name);
+
+        List<Field> fields = ReflectionUtils.getNonStaticDeclaredFields(clazz);
+        for (Field field : fields) {
+            writeField(field, obj);
+        }
     }
 
     private void writeField(Field field, Object obj) throws IOException, IllegalAccessException,
@@ -159,7 +220,7 @@ public class ObjectSerializerImpl implements ObjectSerializer {
         if (!field.isAccessible()) {
             field.setAccessible(true);
         }
-        dataOutputStream.writeUTF(field.getName());
+//        dataOutputStream.writeUTF(field.getName());
         writeObject(field.get(obj));
     }
 
@@ -191,7 +252,7 @@ public class ObjectSerializerImpl implements ObjectSerializer {
         } else if (clazz == byte.class) {
             dataOutputStream.writeByte((byte) value);
         } else {
-            System.out.println("Это не примитив! : " + clazz.getName());
+            throw new IllegalArgumentException();
         }
     }
 }

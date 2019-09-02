@@ -10,15 +10,15 @@ public class Human {
 
     @Getter
     @Setter
-    private String name = "Petya";
+    private String name;
 
     @Getter
     @Setter
-    private String surname = "Loma";
+    private String surname;
 
     @Getter
     @Setter
-    private int age = 31;
+    private int age;
 
     @Getter
     @Setter

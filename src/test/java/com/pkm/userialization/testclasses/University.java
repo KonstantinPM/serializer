@@ -12,4 +12,8 @@ public class University {
     @Getter
     @Setter
     private String name;
+
+    @Getter
+    @Setter
+    private int accreditationLevel;
 }
