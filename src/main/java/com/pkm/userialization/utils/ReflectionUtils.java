@@ -46,7 +46,8 @@ public class ReflectionUtils {
     }
 
     /**
-     * Возвращает новый экземпляр класса, созданный без использования конструктора без аргументов
+     * Возвращает новый экземпляр класса, созданный без использования конструктора без аргументов.
+     * Поля заполняются дефолтными значениями: null - для объектов, 0 - для примитивов.
      */
     public static Object newInstanceWithoutNoArgsConstructor(Class<?> clazz) throws ReflectiveOperationException {
         Optional<Constructor<?>> constructorOpt = Arrays.stream(clazz.getDeclaredConstructors())
@@ -62,7 +63,11 @@ public class ReflectionUtils {
         for (int i = 0; i < parameters.length; i++) {
             Class<?> paramClass = parameters[i].getType();
             if (paramClass.isPrimitive()){
-                params[i] = 0;
+                if (paramClass == boolean.class) {
+                    params[i] = false;
+                } else {
+                    params[i] = 0;
+                }
             } else {
                 params[i] = null;
             }

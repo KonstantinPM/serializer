@@ -8,6 +8,8 @@ import lombok.*;
 @ToString
 public class Human {
 
+    public final static String HUMAN_CLASS = "Homo sapiens";
+
     @Getter
     @Setter
     private String name;

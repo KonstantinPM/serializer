@@ -8,6 +8,8 @@ import lombok.*;
 @ToString(callSuper = true)
 public class Student extends Human {
 
+    public final static int YEAR = 5;
+
     @Getter
     @Setter
     private String facultyName;
